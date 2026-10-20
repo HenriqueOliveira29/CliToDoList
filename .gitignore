@@ -1,0 +1,35 @@
+# Binaries
+/cliToDoList
+/cliToDoList.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/bin/
+/dist/
+
+# Test and coverage output
+*.test
+*.out
+coverage.*
+
+# Local config with credentials (commit config.example.yaml instead)
+config.yaml
+config.yml
+
+# Env files (only if you add them later)
+.env
+.env.*
+!.env.example
+
+# Go workspace files
+go.work
+go.work.sum
+
+# IDE and OS files
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
