@@ -16,7 +16,7 @@ var listCmd = &cobra.Command{
 	Short: "List all task that you have",
 	Long: `Return all the tasks that you have saved on to do`,
 	Run: func(cmd *cobra.Command, args []string) {
-		tasks, err := todoService.GetAll()
+		tasks, err := svc.GetAll(cmd.Context())
 		if err != nil {
 			fmt.Println(err)
 		}

@@ -5,52 +5,70 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"context"
+	"fmt"
 	"os"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
-  "github.com/HenriqueOliveira29/cliToDoList/internal/service"
+
+	"github.com/HenriqueOliveira29/cliToDoList/internal/config"
+  	"github.com/HenriqueOliveira29/cliToDoList/internal/service"
 	"github.com/HenriqueOliveira29/cliToDoList/internal/repository"
 
 )
 
-var todoService *service.TodoService
+var (
+	cfgPath string
+
+	pool    *pgxpool.Pool
+	svc     *service.TodoService
+)
 
 // rootCmd represents the base command when called without any subcommands
-var rootCmd = &cobra.Command{
-	Use:   "cliToDoList",
-	Short: "A To Do cli application where you can manage your tasks",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+func initApp(cmd *cobra.Command) error {
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		return err
+	}
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+	ctx := cmd.Context()
+	pool, err = pgxpool.New(ctx, cfg.Database.DSN())
+	if err != nil {
+		return fmt.Errorf("create pool: %w", err)
+	}
+	if err := pool.Ping(ctx); err != nil {
+		return fmt.Errorf("ping database: %w", err)
+	}
+
+	svc = service.NewToDoService(repository.NewPostgresRepo(pool))
+	return nil
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
+var rootCmd = &cobra.Command{
+	Use:   "clitodolist",
+	Short: "Todo list CLI and API server",
+
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return initApp(cmd)
+	},
+
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		if pool != nil {
+			pool.Close()
+		}
+	},
+}
+
+
 func Execute() {
-	repo := repository.NewMemoryRepo()
-	todoService = service.NewToDoService(repo)
-	err := rootCmd.Execute()
-	if err != nil {
+	if err := rootCmd.ExecuteContext(context.Background()); err != nil {
 		os.Exit(1)
 	}
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.cliToDoList.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	rootCmd.PersistentFlags().StringVar(&cfgPath, "config", "config.yaml", "path to config file")
 }
 
 

@@ -1,38 +1,45 @@
-/*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-
-*/
 package cmd
 
 import (
 	"log"
+	"os/signal"
+	"syscall"
+
 	"github.com/spf13/cobra"
+
 	"github.com/HenriqueOliveira29/cliToDoList/internal/api"
 )
 
-var port *string
-// serveCmd represents the serve command
+var (
+	addr     string
+	noDocker bool
+)
+
 var serveCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "Start a API server",
-	Long: `Start a API server`,
-	Run: func(cmd *cobra.Command, args []string) {
-		server := api.NewServer(todoService)
-		log.Fatal(server.Start(*port))
+	Short: "Start Postgres (via Docker) and the API server",
+
+	// Replaces the root hook: start Docker first, then connect to the database.
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if !noDocker {
+			if err := composeUp(cmd); err != nil {
+				return err
+			}
+		}
+		return initApp(cmd)
+	},
+
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+
+		log.Printf("listening on %s", addr)
+		return api.NewServer(svc).Start(ctx, addr)
 	},
 }
 
 func init() {
-	serveCmd.Flags().StringVarP(&port, "port", "p", "8080", "port to listen on")
+	serveCmd.Flags().StringVar(&addr, "addr", ":8080", "address to listen on")
+	serveCmd.Flags().BoolVar(&noDocker, "no-docker", false, "skip starting the Postgres container")
 	rootCmd.AddCommand(serveCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// serveCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// serveCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

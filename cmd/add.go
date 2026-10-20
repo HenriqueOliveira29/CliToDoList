@@ -18,11 +18,11 @@ var addCmd = &cobra.Command{
 	Long: `Add a task to the list.
 	Write the title on the task that you want to create`,
 	Run: func(cmd *cobra.Command, args []string) {
-	  err := todoService.Add(strings.Join(args, " "))
+	  id, err := svc.Add(cmd.Context(), strings.Join(args, " "))
 		if err != nil {
 			fmt.Println(err)
 		}
-		fmt.Println("Task with the title %s\n added with success", strings.Join(args, ""))
+		fmt.Printf("Task added with ID: %d\n", id)
 	},
 }
 

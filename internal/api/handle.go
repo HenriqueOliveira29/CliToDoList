@@ -1,33 +1,60 @@
 package api
 
 import (
-    "encoding/json"
-    "net/http"
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"net/http"
+
+	"github.com/HenriqueOliveira29/cliToDoList/internal/service"
 )
 
 type createTaskRequest struct {
-    Title string `json:"title"`
+	Title string `json:"title"`
+}
+
+type createTaskResponse struct {
+	ID int `json:"id"`
 }
 
 func (s *Server) listTasks(w http.ResponseWriter, r *http.Request) {
-    tasks, err := s.svc.GetAll()
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(tasks)
+	tasks, err := s.svc.GetAll(r.Context())
+	if err != nil {
+		slog.Error("list tasks", "err", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, tasks)
 }
 
 func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
-    var req createTaskRequest
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        http.Error(w, "invalid JSON body", http.StatusBadRequest)
-        return
-    }
-    if err := s.svc.Add(req.Title); err != nil {
-        http.Error(w, err.Error(), http.StatusBadRequest)
-        return
-    }
-    w.WriteHeader(http.StatusCreated)
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB
+
+	var req createTaskRequest
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
+		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	id, err := s.svc.Add(r.Context(), req.Title)
+	if err != nil {
+		if errors.Is(err, service.ErrInvalidTitle) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		slog.Error("create task", "err", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusCreated, createTaskResponse{ID: id})
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Error("write response", "err", err)
+	}
 }
