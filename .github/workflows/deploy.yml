@@ -1,0 +1,66 @@
+name: Deploy
+
+on:
+  release:
+    types: [published]
+
+# Needed for OIDC login to AWS (no long-lived access keys)
+permissions:
+  id-token: write
+  contents: read
+
+# Never run two applies at the same time
+concurrency:
+  group: terraform-deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-north-1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build Linux binary
+        run: |
+          mkdir -p bin
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
+            go build -trimpath -ldflags="-s -w" -o bin/todo-api .
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ">=1.10"
+          terraform_wrapper: false
+
+      - name: Terraform init
+        working-directory: infra
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        working-directory: infra
+        run: terraform validate
+
+      - name: Terraform apply
+        working-directory: infra
+        run: terraform apply -input=false -auto-approve
+
+      - name: Show API address
+        working-directory: infra
+        run: |
+          echo "Released ${{ github.event.release.tag_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "API: http://$(terraform output -raw public_ip):8080" >> "$GITHUB_STEP_SUMMARY"
