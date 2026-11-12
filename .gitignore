@@ -33,3 +33,9 @@ go.work.sum
 *.swp
 .DS_Store
 Thumbs.db
+
+bin/
+.terraform/
+terraform.tfstate
+terraform.tfstate.*
+*.tfvars

@@ -20,6 +20,7 @@ type Database struct {
 	User     string `yaml:"user"`
 	Password string `yaml:"password"`
 	Name     string `yaml:"name"`
+	SSLMode  string `yaml:"sslmode"`
 }
 
 type PgAdmin struct {
@@ -40,14 +41,18 @@ func Load(path string) (*Config, error) {
 }
 
 func (d Database) DSN() string {
+	mode:= d.SSLMode
+	if mode == "" {
+		mode = "require"
+	}
+
 	u := url.URL{
 		Scheme: "postgres",
 		User:   url.UserPassword(d.User, d.Password),
 		Host:   fmt.Sprintf("%s:%d", d.Host, d.Port),
 		Path:   d.Name,
+		RawQuery: "sslmode=" + mode,
 	}
-	q := u.Query()
-	q.Set("sslmode", "disable") // local dev only
-	u.RawQuery = q.Encode()
+
 	return u.String()
 }
