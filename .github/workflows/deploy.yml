@@ -3,6 +3,7 @@ name: Deploy
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 # Needed for OIDC login to AWS (no long-lived access keys)
 permissions:
